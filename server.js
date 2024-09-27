@@ -48,8 +48,18 @@ myDB(async (client) => {
         res.redirect("/profile");
       }
     );
-  app.route("/profile").get((req, res) => {
-    res.render("profile");
+
+  app.route("/profile").get(ensureAuthenticated, (req, res) => {
+    res.render("profile", { username: req.user.username });
+  });
+
+  app.route("/logout").get((req, res) => {
+    req.logout();
+    res.redirect("/");
+  });
+
+  app.use((req, res, next) => {
+    res.status(404).type("text").send("Not Found");
   });
 
   passport.serializeUser((user, done) => {
@@ -66,18 +76,23 @@ myDB(async (client) => {
     res.render("index", { title: e, message: "Unable to connect to database" });
   });
 });
-
-passport.use(
-  new LocalStrategy((username, password, done) => {
-    myDataBase.findOne({ username: username }, (err, user) => {
-      console.log(`User ${username} attempted to log in.`);
-      if (err) return done(err);
-      if (!user) return done(null, false);
-      if (password !== user.password) return done(null, false);
-      return done(null, user);
-    });
-  })
-);
+function ensureAuthenticated(req, res, next) {
+  passport.use(
+    new LocalStrategy((username, password, done) => {
+      myDataBase.findOne({ username: username }, (err, user) => {
+        console.log(`User ${username} attempted to log in.`);
+        if (err) return done(err);
+        if (!user) return done(null, false);
+        if (password !== user.password) return done(null, false);
+        return done(null, user);
+      });
+    })
+  );
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.redirect("/");
+}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
